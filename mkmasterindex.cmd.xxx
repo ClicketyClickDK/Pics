@@ -1,0 +1,61 @@
+@ECHO OFF
+::@(#) mkMasterIndex -- build master index for XnJsWebTemplate
+    CALL _Debug
+    %_Verbose_% mkMasterIndex -- build master index for XnJsWebTemplate
+
+    SET INDEX=index.html
+    SET MainTitle=Fotoindex
+    SET ROOTDIR=%CD%
+    %_DEBUG_% Root=%ROOTDIR%
+    ::ECHO ^<ul^>
+    >%Index% ECHO ^<h1^>%MainTitle%^</h1^>
+    >>%Index% ECHO ^<link rel="stylesheet" type="text/css" href="pic.css"^>
+    >>%Index% ECHO:
+    >>%Index% ECHO ^<table width="100%"^>^<tr^>^<td^>^<tr^>
+
+    SETLOCAL ENABLEDELAYEDEXPANSION
+
+    FOR /F %%i IN ('DIR /s /b thumb.html') DO CALL :process_dir "%%i"
+
+    ENDLOCAL
+    ::ECHO ^</ul^>
+    >>%Index% ECHO ^</tr^>^</td^>^</tr^>^</table^>
+    CALL _UTC
+    >>%Index% ECHO ^<br clear=both^>^<hr^>^&copy;%UTC%^<hr^>
+    
+GOTO :EOF
+
+:process_dir dir
+    SET P=%~1
+    %_DEBUG_% P=%p%
+    
+    FOR /F "delims=^> tokens=2" %%i IN ('find /i "<title>" ^< %p%') DO (
+            CALL SET TITLE=%%i
+        )
+    )
+
+    %_DEBUG_% Title=[%Title%]
+    CALL SET "p=%%P:%Rootdir%\=%%"
+    ::CALL ECHO sub=%p:%%%%ROOTDIR%%%%=x%
+    %_DEBUG_% p=%P:\=/%
+    
+    CALL :get_thumb %P%
+    CALL SET "Tpath=%%Tpath:%Rootdir%\=%%"
+    %_Verbose_% - %Tpath%   %Timg%    %Title%
+
+    >>%Index% ECHO ^<div class="picture left"^>
+    >>%Index% ECHO ^<a href="%P:\=/%"^>^<img src="%Tpath:\=/%%Timg%"^>
+    >>%Index% ECHO ^<br^>^<span^>%Title%^</span^>^</a^>^</div^>
+    >>%Index% ECHO:
+
+GOTO :EOF
+
+:get_thumb
+    set tpath=%~dp1thumb\
+    %_Debug_% Tpath=%Tpath%
+    SET Timg=
+    FOR /F %%i IN ('DIR /B %Tpath%*.jpg') DO IF NOT DEFINED Timg CALL SET Timg=%%i
+    
+GOTO :EOF
+
+::*** End of File *****************************************************

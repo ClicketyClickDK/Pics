@@ -1,0 +1,15 @@
+AutoOrient.cmd
+buildmetafiles.cmd
+cr.cmd
+createThumb.cmd
+exiftool
+imagemagick
+list
+mkmasterindex.cmd.xxx
+movepic2dir.cmd
+pics.cmd
+pics_rename.cmd
+README.md
+RebuildThumbs.cmd
+rename_picture.raw2stamp.cmd
+rename_picture.stamp2raw.cmd
