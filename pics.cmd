@@ -20,8 +20,8 @@ SET STUB=%~dp0
 ::SET VERSION=01.240&SET REVISION=2014-09-14T09:55&SET COMMENT=title and msg
 ::SET VERSION=01.250&SET REVISION=2014-12-21T10:02&SET COMMENT=ShowTime with leading digits
 ::SET VERSION=01.252&SET REVISION=2014-12-21T10:03&SET COMMENT=Target dir test2 to new
-  SET VERSION=01.253&SET REVISION=2016-05-07T09:03&SET COMMENT=Enhanced list of raw images + Title bar
-::
+::SET VERSION=01.253&SET REVISION=2016-05-07T09:03&SET COMMENT=Enhanced list of raw images + Title bar
+  SET VERSION=01.254&SET REVISION=2016-12-14T13:47:00&SET COMMENT=_SD_RANGE + enhanced file count using TEMP
 :: TO DO
 :: Use temp files for testing and finding images to copy!
 ::
@@ -88,13 +88,14 @@ GOTO :EOF
     CD /D "%_Root%"
     SET _ERRORS=0
     SET _FILES=0
-    ::SET _Total_FILES=0
+
     SET _Total_files_=0
     SET STANDARD_EXTENTIONS=jpg
-    ::SET RAW_EXTENTIONS=dng pef tif 
+
     SET RAW_EXTENTIONS=dng pef tif crw cr2 nef nrw orf
     SET MOVIE_EXTENTIONS=avi mov thm
-    SET _SD-DRIVE=E:
+    SET _SD-DRIVE=
+    SET _SD_Range=D E F G H I J K L M N
 
     IF NOT "!"=="%2!" SET _SD-DRIVE=%~2
     ::IF NOT EXIST %_SD-DRIVE%\. GOTO Drive-not-ready
@@ -113,7 +114,6 @@ GOTO :EOF   *** :init ***
     FOR %%j IN (%STANDARD_EXTENTIONS%) DO (
         FOR /F %%i IN ('DIR /B /S %_SD-DRIVE%\*.%%j 2^>NUL') DO (
             CALL :Copy_pic %%~nxi %%~ti %%~dpi new\
-            REM ::CALL :Copy_pic %%~nxi %%~ti %%~dpi test2\
         )
     )
     ECHO:
@@ -179,7 +179,7 @@ GOTO :EOF   *** :SetEuroDate ***
         TITLE %NAME%: Copying %_dato%_%1
         COPY %4%1 %5%_dato:~0,10%\%_dato%_%1 >>%_root%.error.txt 2>&1
         IF ERRORLEVEL 1 ECHO FEJL & SET /A _ERRORS=%_ERRORS% + 1 & pause
-        ::CALL SET /A _FILES_%_FILE:~-3%=%_FILES_%_FILE:~-3%% + 1
+
         CALL SET /A _FILEs=%_FILES% + 1
         CALL :add_one _FILES_%_FILE:~-3%
         SET /p _=o<nul
@@ -231,31 +231,33 @@ GOTO :EOF    *** :EjectCard ***
 ::----------------------------------------------------------------------
 
 :Count_files
+    IF EXIST "%TEMP%\%~n0.count" DEL "%TEMP%\%~n0.count"
     FOR %%j in (%STANDARD_EXTENTIONS% %RAW_EXTENTIONS% %MOVIE_EXTENTIONS% ) DO (
-        CALL :init_var $$%%j
-
-        FOR /F %%i IN ('dir /B /S %_SD-DRIVE%\*.%%j 2^>NUL') DO (
-            CALL :add_one $$%%j
-        )
+        TITLE counting [%%j]
+        DIR /B /S %_SD-DRIVE%\*.%%j 2>NUL 1>>"%TEMP%\%~n0.count"
     )
 GOTO :EOF   *** :Count_files ***
 
 ::----------------------------------------------------------------------
 
 :Show_filecount
-    FOR /F "delims== tokens=1,2*" %%j IN ('set $$') DO (
-        ECHO [%%j]=[%%k]>NUL
-        CALL :SHOW %%j %%k
+
+    FOR %%j in (%STANDARD_EXTENTIONS% %RAW_EXTENTIONS% %MOVIE_EXTENTIONS% ) DO (
+        TITLE counting [%%j]
+        SET /P _=- %%j	<NUL
+        FIND /I /C "%%j" < "%TEMP%\%~n0.count"
     )
-    CALL :SHOW "  Total" %_Total_files_%
+
+    SET /P _=Totals: <NUL
+    FIND /I /C "." < "%TEMP%\%~n0.count"
 GOTO :EOF   *** :Show_filecount ***
 
 ::----------------------------------------------------------------------
 
 :set_sd
-    FOR %%a IN ( E F G H ) DO (
-        ECHO - Checking %%a:\DCIM
-        IF EXIST %%a:\DCIM CALL SET _SD-DRIVE=%%a:
+    FOR %%a IN ( %_SD_Range% ) DO (
+        TITLE %~n0 - Checking %%a:\DCIM
+        IF EXIST %%a:\DCIM CALL SET _SD-DRIVE=%%a:& ECHO: - %%a:\DCIM
     )
     ECHO [%_SD-DRIVE%]
 GOTO :EOF   *** :set_sd ***
@@ -294,10 +296,6 @@ GOTO :EOF
     SET /a DiffHrs=%Diff%
      
     :: format with leading zeroes
-::    if %DiffMS% LSS 10 SET DiffMS=0%DiffMS!%
-::    if %DiffSec% LSS 10 SET DiffMS=0%DiffSec%
-::    if %DiffMin% LSS 10 SET DiffMS=0%DiffMin%
-::    if %DiffHrs% LSS 10 SET DiffMS=0%DiffHrs%
     SET DiffMS=00%DiffMS%
     SET DiffSec=00%DiffSec%
     SET DiffMin=00%DiffMin%
