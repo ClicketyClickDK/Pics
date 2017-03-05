@@ -1,5 +1,6 @@
 @ECHO OFF
 SETLOCAL
+
 ::**********************************************************************
 SET NAME=pics
 SET DESCRIPTION=Copying pictures from card to PC
@@ -21,7 +22,11 @@ SET STUB=%~dp0
 ::SET VERSION=01.250&SET REVISION=2014-12-21T10:02&SET COMMENT=ShowTime with leading digits
 ::SET VERSION=01.252&SET REVISION=2014-12-21T10:03&SET COMMENT=Target dir test2 to new
 ::SET VERSION=01.253&SET REVISION=2016-05-07T09:03&SET COMMENT=Enhanced list of raw images + Title bar
-  SET VERSION=01.254&SET REVISION=2016-12-14T13:47:00&SET COMMENT=_SD_RANGE + enhanced file count using TEMP
+::SET VERSION=01.254&SET REVISION=2016-07-21T21:002:00&SET COMMENT=SD-DRIVE_RANGE added + checking drive type 2
+::SET VERSION=01.255&SET REVISION=2017-03-04T10:14:00&SET COMMENT=WCIM commands as string vars
+  SET VERSION=01.256&SET REVISION=2017-03-05T12:50:00&SET COMMENT=CD changed to PUSHD to support UNC paths
+  
+::
 :: TO DO
 :: Use temp files for testing and finding images to copy!
 ::
@@ -62,6 +67,10 @@ SET STUB=%~dp0
 ::     .srw (Samsung)
 ::     .x3f (Sigma)
 :: 
+:: Windows 10: To create a link from Start menu or Task bar make a link:
+:: C:\Windows\System32\cmd.exe /C "\\gryde62\fotos\pics.cmd"
+:: Select an icon from: %SystemRoot%\System32\imageres.dll
+:: 
 ::*********************************************************************
 ECHO %NAME% v. %VERSION% -- %DESCRIPTION%
 SET _TitleStub=%NAME% v. %VERSION% Rev. %Revision%
@@ -71,9 +80,6 @@ ECHO By %Author%
     ECHO:
     CALL :Start_Timer
     CALL :Init %*
-    ECHO Counting files
-    CALL :Count_files
-    CALL :Show_filecount
     CALL :main
     :: CALL :TEST
     ::CALL :EjectCard
@@ -85,39 +91,62 @@ GOTO :EOF
 :init
     SET _ROOT=%STUB%
     IF NOT "!"=="!%~1" SET _ROOT=%~1
-    CD /D "%_Root%"
+    ::CD /D "%_Root%"
+    PUSHD "%_Root%"
     SET _ERRORS=0
     SET _FILES=0
-
+    ::SET _Total_FILES=0
     SET _Total_files_=0
     SET STANDARD_EXTENTIONS=jpg
-
+    ::SET RAW_EXTENTIONS=dng pef tif 
     SET RAW_EXTENTIONS=dng pef tif crw cr2 nef nrw orf
     SET MOVIE_EXTENTIONS=avi mov thm
+    ::SET _SD-DRIVE=E:
     SET _SD-DRIVE=
-    SET _SD_Range=D E F G H I J K L M N
+    ::SET _SD-DRIVE_RANGE=D E F G H I J K
+    SET _SD-DRIVE_RANGE=
 
+    
     IF NOT "!"=="%2!" SET _SD-DRIVE=%~2
     ::IF NOT EXIST %_SD-DRIVE%\. GOTO Drive-not-ready
     CALL :SET_SD
 
     :: Set homedir
-    IF NOT "!"=="%1!" CD /D %1
+    ::IF NOT "!"=="%1!" CD /D %1
+    IF NOT "!"=="%1!" PUSHD /D %1
     ECHO Working directory: [%CD%]
     ECHO Arguments: [%*]
 GOTO :EOF   *** :init ***
 ::----------------------------------------------------------------------
 
 :main
-    ECHO Standards
+    ECHO:Drive range=[%_SD-DRIVE_RANGE%]
+    FOR %%a IN ( %_SD-DRIVE_RANGE% ) DO (
+        ECHO:- Checking %%a\DCIM
+        ::IF EXIST %%a:\DCIM CALL SET _SD-DRIVE=%%a:
+        IF EXIST %%a\DCIM CALL :Process_DCIM %%a
+    )
+GOTO :EOF   *** :main ****
 
+::----------------------------------------------------------------------
+
+:Process_DCIM
+    SET _SD-DRIVE=%~1
+    ECHO Counting files
+    CALL :Count_files
+    CALL :Show_filecount
+
+:Standards
+    ECHO Standards
     FOR %%j IN (%STANDARD_EXTENTIONS%) DO (
         FOR /F %%i IN ('DIR /B /S %_SD-DRIVE%\*.%%j 2^>NUL') DO (
             CALL :Copy_pic %%~nxi %%~ti %%~dpi new\
+            REM ::CALL :Copy_pic %%~nxi %%~ti %%~dpi test2\
         )
     )
     ECHO:
 
+:Raws
     ECHO Raws
     FOR %%j in (%RAW_EXTENTIONS%) DO (
         FOR /F %%i IN ('dir /B /S %_SD-DRIVE%\*.%%j 2^>NUL') DO (
@@ -126,6 +155,7 @@ GOTO :EOF   *** :init ***
     )
     ECHO:
 
+:Movie
     ECHO Movie
     FOR %%j in (%MOVIE_EXTENTIONS%) DO (
         FOR /F %%i IN ('dir /B /S %_SD-DRIVE%\*.%%j 2^>NUL') DO (
@@ -179,9 +209,11 @@ GOTO :EOF   *** :SetEuroDate ***
         TITLE %NAME%: Copying %_dato%_%1
         COPY %4%1 %5%_dato:~0,10%\%_dato%_%1 >>%_root%.error.txt 2>&1
         IF ERRORLEVEL 1 ECHO FEJL & SET /A _ERRORS=%_ERRORS% + 1 & pause
-
+        ::CALL SET /A _FILES_%_FILE:~-3%=%_FILES_%_FILE:~-3%% + 1
         CALL SET /A _FILEs=%_FILES% + 1
         CALL :add_one _FILES_%_FILE:~-3%
+        CALL :add_one _Total_files_
+
         SET /p _=o<nul
     ) ELSE (
         rem TITLE %$NAME%: Skipping %_dato%_%1
@@ -201,6 +233,7 @@ GOTO :EOF   *** :stamping ***
 
 ::----------------------------------------------------------------------
 
+:: Set count to 0
 :init_var
     CALL SET /a %1=0
 GOTO :EOF   *** :init_var ***
@@ -209,7 +242,6 @@ GOTO :EOF   *** :init_var ***
 
 :Add_one
     CALL SET /a %1=%%%1%% + 1
-    CALL SET /A _Total_files_=%_Total_files_% + 1
 GOTO :EOF   *** :Add_one ***
 
 ::----------------------------------------------------------------------
@@ -231,42 +263,61 @@ GOTO :EOF    *** :EjectCard ***
 ::----------------------------------------------------------------------
 
 :Count_files
-    IF EXIST "%TEMP%\%~n0.count" DEL "%TEMP%\%~n0.count"
     FOR %%j in (%STANDARD_EXTENTIONS% %RAW_EXTENTIONS% %MOVIE_EXTENTIONS% ) DO (
-        TITLE counting [%%j]
-        DIR /B /S %_SD-DRIVE%\*.%%j 2>NUL 1>>"%TEMP%\%~n0.count"
+        CALL :init_var $$%%j
+::echo: dir /B /S %_SD-DRIVE%\*.%%j
+        FOR /F %%i IN ('dir /B /S %_SD-DRIVE%\*.%%j 2^>NUL') DO (
+            CALL :add_one $$%%j
+            CALL :add_one _Total_files_
+        )
     )
 GOTO :EOF   *** :Count_files ***
 
 ::----------------------------------------------------------------------
 
 :Show_filecount
-
-    FOR %%j in (%STANDARD_EXTENTIONS% %RAW_EXTENTIONS% %MOVIE_EXTENTIONS% ) DO (
-        TITLE counting [%%j]
-        SET /P _=- %%j	<NUL
-        FIND /I /C "%%j" < "%TEMP%\%~n0.count"
+    FOR /F "delims== tokens=1,2*" %%j IN ('set $$') DO (
+        ECHO [%%j]=[%%k]>NUL
+        CALL :SHOW %%j %%k
     )
-
-    SET /P _=Totals: <NUL
-    FIND /I /C "." < "%TEMP%\%~n0.count"
+    CALL :SHOW "  Total" %_Total_files_%
 GOTO :EOF   *** :Show_filecount ***
 
 ::----------------------------------------------------------------------
 
 :set_sd
-    FOR %%a IN ( %_SD_Range% ) DO (
-        TITLE %~n0 - Checking %%a:\DCIM
-        IF EXIST %%a:\DCIM CALL SET _SD-DRIVE=%%a:& ECHO: - %%a:\DCIM
+    :: DriveType is returned as an integer that corresponds to the type of 
+:: disk drive the logical disk represents (and this matches the 
+:: Description, making DriveType sort of superfluous). 
+:: 0 = Unknown
+:: 1 = No Root Directory
+:: 2 = Removable Disk
+:: 3 = Local Disk
+:: 4 = Network Drive
+:: 5 = Compact Disc
+:: 6 = RAM Disk
+:: get removable drives (Type 2)
+    SET _WCIM=wmic logicaldisk get drivetype^^,caption
+    FOR /F "tokens=1,2*" %%a IN ('%_WCIM% ^| Findstr "2"') DO (
+        CALL :appendVar _SD-DRIVE_RANGE %%a
     )
-    ECHO [%_SD-DRIVE%]
+    ::CALL SET _SD-DRIVE_RANGE=!_SD-DRIVE_RANGE! %%a
 GOTO :EOF   *** :set_sd ***
 
+::----------------------------------------------------------------------
 
+:: Append value environment string
+:appendVar Var value
+    CALL SET %~1=%%%1%% %~2
+GOTO :EOF
+::----------------------------------------------------------------------
 
+:: Start timer to messure duration of the processing by reading system time
 :start_Timer
- 
-    FOR /F "skip=1 tokens=1-6" %%A IN ('WMIC Path Win32_LocalTime Get Day^,Hour^,Minute^,Second /Format:table ^| findstr /r "."') DO (
+::    FOR /F "skip=1 tokens=1-6" %%A IN ('WMIC Path Win32_LocalTime Get Day^,Hour^,Minute^,Second /Format:table ^| findstr /r "."') DO (
+    SET _WCIM=WMIC Path Win32_LocalTime Get Day^^,Hour^^,Minute^^,Second
+    FOR /F "skip=1 tokens=1-6" %%A IN ('%_WCIM% /Format:table ^| findstr /r "."') DO (
+
         SET Milisecond=%time:~9,2% 
         SET Day=%%A
         SET Hour=%%B
@@ -274,11 +325,15 @@ GOTO :EOF   *** :set_sd ***
         SET Second=%%D
     )
     SET /a Start=%Day%*8640000+%Hour%*360000+%Minute%*6000+%Second%*100+%Milisecond%
-
 GOTO :EOF
 
+::----------------------------------------------------------------------
+
+:: Calculate duration by comparing system time with stored start time
 :show_timer
-    FOR /F "skip=1 tokens=1-6" %%A IN ('WMIC Path Win32_LocalTime Get Day^,Hour^,Minute^,Second /Format:table ^| findstr /r "."') DO (
+::    FOR /F "skip=1 tokens=1-6" %%A IN ('WMIC Path Win32_LocalTime Get Day^,Hour^,Minute^,Second /Format:table ^| findstr /r "."') DO (
+    SET _WCIM=WMIC Path Win32_LocalTime Get Day^^,Hour^^,Minute^^,Second
+    FOR /F "skip=1 tokens=1-6" %%A IN ('%_WCIM% /Format:table ^| findstr /r "."') DO (
         SET Day=%%A
         SET Hour=%%B
         SET Minute=%%C
@@ -296,6 +351,10 @@ GOTO :EOF
     SET /a DiffHrs=%Diff%
      
     :: format with leading zeroes
+::    if %DiffMS% LSS 10 SET DiffMS=0%DiffMS!%
+::    if %DiffSec% LSS 10 SET DiffMS=0%DiffSec%
+::    if %DiffMin% LSS 10 SET DiffMS=0%DiffMin%
+::    if %DiffHrs% LSS 10 SET DiffMS=0%DiffHrs%
     SET DiffMS=00%DiffMS%
     SET DiffSec=00%DiffSec%
     SET DiffMin=00%DiffMin%
